@@ -2,7 +2,7 @@
 
 struct hashmap;
 
-struct hashmap* hashmap_create(int init_cap, int (*func_hashcode)(void*), int (*func_equal)(void*, void*));
+struct hashmap* hashmap_create(int init_cap, int (*func_hashcode)(const void*), int (*func_equal)(const void*, const void*));
 void hashmap_free(struct hashmap* self);
 int hashmap_count(struct hashmap* self);
 void hashmap_resize(struct hashmap* self, int capacity);

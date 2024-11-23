@@ -50,14 +50,14 @@ struct test_element {
     int rand;
 };
 
-static int test_hashcode(void* data) {
-    struct test_element* it = (struct test_element*)data;
+static int test_hashcode(const void* data) {
+    const struct test_element* it = data;
     return it->rand;
 }
 
-static int test_equal(void* a, void* b) {
-    struct test_element* aa = (struct test_element*)a;
-    struct test_element* bb = (struct test_element*)b;
+static int test_equal(const void* a, const void* b) {
+    const struct test_element* aa = a;
+    const struct test_element* bb = b;
     if (aa->rand == bb->rand) {
         return 1;
     }
@@ -82,7 +82,6 @@ int main(int argc, char const* argv[]) {
         hashmap_put(hmap, &arr[i]);
     }
     end_time = time_curruent_us();
-    int total_count = hashmap_count(hmap);
     printf("count: %d, put time pass: %lld us, %lld op/s\n", hashmap_count(hmap), end_time - start_time, 1000000L * test_count / (end_time - start_time));
 
     int error = 0;

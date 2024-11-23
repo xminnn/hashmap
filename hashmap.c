@@ -16,11 +16,11 @@ struct hashmap {
     int capacity;
     int init_capacity;
     struct hashmap_element* arr;
-    int (*func_hashcode)(void*);
-    int (*func_equal)(void*, void*);
+    int (*func_hashcode)(const void*);
+    int (*func_equal)(const void*, const void*);
 };
 
-struct hashmap* hashmap_create(int init_cap, int (*func_hashcode)(void*), int (*func_equal)(void*, void*)) {
+struct hashmap* hashmap_create(int init_cap, int (*func_hashcode)(const void*), int (*func_equal)(const void*, const void*)) {
     struct hashmap* self = (struct hashmap*)malloc(sizeof(struct hashmap));
     self->capacity = init_cap;
     self->count = 0;
@@ -65,7 +65,7 @@ void hashmap_resize(struct hashmap* self, int capacity) {
     int name = self->func_hashcode(data); \
     name ^= (name >> 16);
 
-static inline struct hashmap_element* hashmap_get_(struct hashmap* self, void* key, int* pos) {
+static inline struct hashmap_element* hashmap_get_(struct hashmap* self, const void* key, int* pos) {
     hashmap_init_hashcode(hashcode, key);
 
     int p = hashcode % self->capacity;
@@ -153,7 +153,7 @@ void hashmap_put(struct hashmap* self, void* data) {
     hashmap_add(self, data);
 }
 
-void* hashmap_get(struct hashmap* self, void* key) {
+void* hashmap_get(struct hashmap* self, const void* key) {
     int i;
     struct hashmap_element* it = hashmap_get_(self, key, &i);
     if (it) {
@@ -217,7 +217,6 @@ void hashmap_del(struct hashmap* self, void* key) {
 }
 
 void hashmap_foreach(struct hashmap* self, int (*func)(void*)) {
-    int count = self->count;
     for (int i = 0; i < self->capacity; i++) {
         if (self->arr[i].count > 0) {
             for (int j = 0; j < self->arr[i].count; j++) {

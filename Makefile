@@ -1,5 +1,5 @@
 test_: 
-	gcc -O3 *.c -o test
+	gcc -Wall -Werror -O3 *.c -o test
 	@echo
 	@echo "--- test 1 --- "
 	./test 5000000 1000 500000000
