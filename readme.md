@@ -1,6 +1,6 @@
 ## hashmap.c
 
-c实现的简单的hashmap. 采用线性探测法处理hash冲突。代码简单，性能强悍。
+c实现的简单的hashmap。 采用线性探测法处理hash冲突。代码简单，不到300行代码。性能强悍，千万级别每秒增删。
 
 
 ## example
@@ -27,17 +27,13 @@ static int test_equal(const void* a, const void* b) {
     return 0;
 }
 
-int test_forearch_(void* data) {
-    struct test_element* it = data;
-    printf("%d\n", it->rand);
-    return 1;
-}
-
 int main(int argc, char const* argv[]) {
-    struct hashmap* hmap = hashmap_create(100, test_hashcode, test_equal);
+    struct hashmap* hmap = hashmap_create(100, sizeof(struct test_element), test_hashcode, test_equal);
     hashmap_put(hmap, &(struct test_element){.rand = 1});
     hashmap_get(hmap, &(struct test_element){.rand = 1});
-    hashmap_foreach(hmap, test_forearch_);
+    hashmap_foreach(struct test_element*, it, hmap) {
+        printf("%d\n", it->rand);
+    }
     hashmap_del(hmap, &(struct test_element){.rand = 1});
     hashmap_free(hmap);
     return 0;
@@ -51,7 +47,7 @@ int main(int argc, char const* argv[]) {
 make
 ```
 
-测试机器：`MacBook Air（M2，2022年）`
+测试机器：`MacBook Air（M2，2022）`。不包含数据内存的申请，提前申请好。
 ```txt
 gcc -Wall -Werror -O3 *.c -o test
 
