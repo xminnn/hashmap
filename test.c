@@ -20,30 +20,13 @@ long long time_curruent_us() {
     return now;
 }
 
-int rand_range(int min, int max) {
+int util_rand(int min, int max) {
     static int sand_inited = 0;
     if (!sand_inited) {
         sand_inited = 1;
         srand(time(NULL));
     }
     return ((1.0L * rand() / RAND_MAX) * (max - min) + 0.5L) + min;
-}
-
-int util_rand(int min, int max) {
-    static unsigned long long seed;
-    static char seed_init = 0;
-    static const unsigned long long a = 1103515245;
-    static const unsigned long long c = 12345;
-    static const unsigned long long m = 1 << 31;
-    if (seed_init == 0) {
-        seed_init = 1;
-        seed = time_curruent_us();
-    }
-    seed = (a * seed + c) % m;
-    if (max <= min) {
-        return min;
-    }
-    return seed % (max - min + 1) + min;
 }
 
 struct test_element {
