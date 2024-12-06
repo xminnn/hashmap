@@ -76,7 +76,7 @@ int main(int argc, char const* argv[]) {
     }
     printf("test_count=%d, init_count=%d, rand_range=%d\n", test_count, init_count, rand_range);
 
-    struct hashmap* hmap = hashmap_create(init_count, test_hashcode, test_equal);
+    struct hashmap* hmap = hashmap_create(init_count, 0, test_hashcode, test_equal);
     start_time = time_curruent_us();
     for (int i = 0; i < test_count; i++) {
         hashmap_put(hmap, &arr[i]);
@@ -124,20 +124,15 @@ int main(int argc, char const* argv[]) {
     hashmap_free(hmap);
 
     printf("foreach check:\n");
-    hmap = hashmap_create(init_count, test_hashcode, test_equal);
+    hmap = hashmap_create(init_count, 0, test_hashcode, test_equal);
     for (int i = 0; i < 3; i++) {
         printf("%d ", arr[i].rand);
         hashmap_put(hmap, &arr[i]);
     }
     printf("\n");
-    int test_forearch_(void* data);
-    hashmap_foreach(hmap, test_forearch_);
+    hashmap_foreach(struct test_element*, it, hmap) {
+        printf("%d ", it->rand);
+    }
     printf("\n");
     return 0;
-}
-
-int test_forearch_(void* data) {
-    struct test_element* it = data;
-    printf("%d ", it->rand);
-    return 1;
 }

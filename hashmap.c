@@ -1,3 +1,5 @@
+#include "hashmap.h"
+
 #include <assert.h>
 #include <memory.h>
 #include <stdlib.h>
@@ -12,6 +14,7 @@ struct hashmap_element {
 };
 
 struct hashmap {
+    int element_size;
     int count;
     int capacity;
     int init_capacity;
@@ -20,10 +23,11 @@ struct hashmap {
     int (*func_equal)(const void*, const void*);
 };
 
-struct hashmap* hashmap_create(int init_cap, int (*func_hashcode)(const void*), int (*func_equal)(const void*, const void*)) {
+struct hashmap* hashmap_create(int init_cap, int element_size, int (*func_hashcode)(const void*), int (*func_equal)(const void*, const void*)) {
     struct hashmap* self = (struct hashmap*)malloc(sizeof(struct hashmap));
     self->capacity = init_cap;
     self->count = 0;
+    self->element_size = element_size;
     self->func_equal = func_equal;
     self->func_hashcode = func_hashcode;
     self->init_capacity = init_cap;
@@ -33,6 +37,13 @@ struct hashmap* hashmap_create(int init_cap, int (*func_hashcode)(const void*), 
 }
 
 void hashmap_free(struct hashmap* self) {
+    if (self->element_size) {
+        hashmap_foreach(void*, val, self) {
+            free(val);
+        }
+        self->element_size = 0;
+    }
+    memset(self->arr, 0, sizeof(struct hashmap_element) * self->capacity);
     free(self->arr);
     free(self);
 }
@@ -42,7 +53,6 @@ int hashmap_count(struct hashmap* self) {
 }
 
 void hashmap_resize(struct hashmap* self, int capacity) {
-    void hashmap_add(struct hashmap * self, void* data);
     struct hashmap_element* old = self->arr;
     int old_cap = self->capacity;
     self->capacity = capacity;
@@ -107,21 +117,27 @@ static inline struct hashmap_element* hashmap_get_(struct hashmap* self, const v
     return 0;
 }
 
-void hashmap_add(struct hashmap* self, void* data) {    // must not exist
-    hashmap_init_hashcode(hashcode, data);
+void* hashmap_add(struct hashmap* self, void* data) {    // must not exist
+    if (self->count > self->capacity) {
+        hashmap_resize(self, self->capacity * 2);
+        return hashmap_add(self, data);
+    }
 
+    if (self->element_size) {
+        void* tmp = malloc(self->element_size);
+        memcpy(tmp, data, self->element_size);
+        data = tmp;
+    }
+
+    hashmap_init_hashcode(hashcode, data);
     int p = hashcode % self->capacity;
     struct hashmap_element* it = &self->arr[p];
     if (it->count + it->borrow < k_hash_conflict_list) {
-        it->datas[it->count++] = data;
+        it->datas[it->count++] = (void*)data;
         ++self->count;
-        return;
+        return data;
     }
-    if (self->count > self->capacity) {
-        hashmap_resize(self, self->capacity * 2);
-        hashmap_add(self, data);
-        return;
-    }
+
     it->overflow++;
     self->count++;
     int ep = p;
@@ -138,19 +154,25 @@ void hashmap_add(struct hashmap* self, void* data) {    // must not exist
         if (it->count + it->borrow < k_hash_conflict_list) {
             it->datas[k_hash_conflict_list - 1 - it->borrow] = data;
             it->borrow++;
-            return;
+            return data;
         }
     }
+    return 0;
 }
 
-void hashmap_put(struct hashmap* self, void* data) {
+void* hashmap_put(struct hashmap* self, void* data) {
     int i;
     struct hashmap_element* it = hashmap_get_(self, data, &i);
     if (it) {
+        if (self->element_size) {
+            void* tmp = malloc(self->element_size);
+            memcpy(tmp, data, self->element_size);
+            data = tmp;
+        }
         it->datas[i] = data;
-        return;
+        return it->datas[i];
     }
-    hashmap_add(self, data);
+    return hashmap_add(self, data);
 }
 
 void* hashmap_get(struct hashmap* self, const void* key) {
@@ -162,75 +184,84 @@ void* hashmap_get(struct hashmap* self, const void* key) {
     return 0;
 }
 
-void hashmap_del(struct hashmap* self, void* key) {
-    hashmap_init_hashcode(hashcode, key);
-    int p = hashcode % self->capacity;
-    struct hashmap_element* it = &self->arr[p];
-    if (it->count > 0) {
-        for (int i = 0; i < it->count; i++) {
-            if (self->func_equal(it->datas[i], key) == 1) {
-                if (it->count > 0) {
-                    it->datas[i] = it->datas[it->count - 1];
-                }
-                it->count--;
-                self->count--;
-                return;
-            }
-        }
+void hashmap_del(struct hashmap* self, const void* key) {
+    int pos;
+    struct hashmap_element* it = hashmap_get_(self, key, &pos);
+    if (!it) {
+        return;
     }
 
-    struct hashmap_element* tar = it;
-    int overflow = it->overflow;
-    int ep = p;
-    while (overflow > 0) {
-        p = p - 1;
-        if (p < 0) {
-            p = self->capacity - 1;
-        }
-        if (p == ep) {
-            break;
-        }
-        it = &self->arr[p];
-        if (it->borrow > 0) {
-            for (int i = 0; i < it->borrow; i++) {
-                int k = k_hash_conflict_list - 1 - i;
-                hashmap_init_hashcode(ohashcode, it->datas[k]);
-                if (ohashcode == hashcode) {
-                    if (self->func_equal(it->datas[k], key) == 1) {
-                        if (it->borrow - 1 > 0) {
-                            it->datas[k] = it->datas[k_hash_conflict_list - it->borrow];
-                        }
-                        it->borrow--;
-                        tar->overflow--;
-                        self->count--;
-                        return;
-                    }
-                    overflow--;
-                }
-            }
-        }
+    hashmap_init_hashcode(hashcode, key);
+    int p = hashcode % self->capacity;
+    if (self->element_size) {
+        free(it->datas[pos]);
+        it->datas[pos] = 0;
     }
+    
+    struct hashmap_element* tar = &self->arr[p];
+    if (it == tar) {
+        if (it->count > 0) {
+            it->datas[pos] = it->datas[it->count - 1];
+        }
+        it->count--;
+        assert(it->count >= 0);
+    } else {
+        if (it->borrow > 1) {
+            it->datas[pos] = it->datas[k_hash_conflict_list - it->borrow];
+        }
+        it->borrow--;
+        tar->overflow--;
+        assert(it->borrow >= 0);
+        assert(tar->overflow >= 0);
+    }
+    self->count--;
+    assert(self->count >= 0);
 
     if (self->capacity > self->init_capacity && self->count * 3 < self->capacity) {
         hashmap_resize(self, self->capacity / 2);
     }
 }
 
-void hashmap_foreach(struct hashmap* self, int (*func)(void*)) {
-    for (int i = 0; i < self->capacity; i++) {
-        if (self->arr[i].count > 0) {
-            for (int j = 0; j < self->arr[i].count; j++) {
-                if (!func(self->arr[i].datas[j])) {
-                    return;
+struct hashmap_itor hashmap_itor_next(struct hashmap* self, struct hashmap_itor it) {
+    int i = it.i;
+    int j = it.j;
+    int where = it.where;
+    if (it.where == 0) {
+        i = 0;
+        j = 0;
+        where = 1;
+    } else {
+        j += 1;
+    }
+    for (; i < self->capacity; i++) {
+        if (where == 1) {
+            if (self->arr[i].count > 0) {
+                if (j < self->arr[i].count) {
+                    return (struct hashmap_itor){.i = i, .j = j, .where = where};
                 }
             }
+            j = 0;
+            where = 2;
         }
-        if (self->arr[i].borrow > 0) {
-            for (int j = 0; j < self->arr[i].borrow; j++) {
-                if (!func(self->arr[i].datas[k_hash_conflict_list - j - 1])) {
-                    return;
+        if (where == 2) {
+            if (self->arr[i].borrow > 0) {
+                if (j < self->arr[i].borrow) {
+                    return (struct hashmap_itor){.i = i, .j = j, .where = where};
                 }
             }
+            j = 0;
+            where = 1;
         }
     }
+    return (struct hashmap_itor){.i = 0, .j = 0, .where = 0};
+}
+
+void* hashmap_itor_val(struct hashmap* self, struct hashmap_itor it) {
+    if (it.where == 1) {
+        return self->arr[it.i].datas[it.j];
+    }
+    if (it.where == 2) {
+        return self->arr[it.i].datas[k_hash_conflict_list - it.j - 1];
+    }
+    return 0;
 }
